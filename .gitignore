@@ -1,0 +1,10 @@
+node_modules
+.serverless
+.env
+.dart-tool/
+.cocoapods/
+.android/
+.aws/
+.aws-sam/
+.config/
+get-token.sh

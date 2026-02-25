@@ -1,0 +1,148 @@
+service: habit-tracker-backend
+
+frameworkVersion: '4'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-north-1
+  environment:
+    HABITS_TABLE: habit-tracker-habits-dev
+    LOGS_TABLE: habit-tracker-logs-dev
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Query
+          Resource: 
+            - arn:aws:dynamodb:eu-north-1:*:table/habit-tracker-habits-dev
+            - arn:aws:dynamodb:eu-north-1:*:table/habit-tracker-logs-dev
+  httpApi:
+    authorizers:
+      cognitoAuthorizer:
+        type: jwt
+        identitySource: $request.header.Authorization
+        issuerUrl: https://cognito-idp.eu-north-1.amazonaws.com/eu-north-1_g4IfdfsqR
+        audience:
+          - 7ontf5btpu619otkkd8djfu8tc
+
+functions:
+  createHabit:
+    handler: functions/habits/createHabit/index.handler
+    events:
+      - httpApi:
+          path: /habits
+          method: post
+          authorizer:
+            name: cognitoAuthorizer
+  getHabits:
+    handler: functions/habits/getHabits/index.handler
+    events:
+      - httpApi:
+          path: /habits
+          method: get
+          authorizer:
+            name: cognitoAuthorizer
+  updateHabit:
+    handler: functions/habits/updateHabit/index.handler
+    events:
+      - httpApi:
+          path: /habits/{habitId}
+          method: put
+          authorizer:
+            name: cognitoAuthorizer
+  deleteHabit:
+    handler: functions/habits/deleteHabit/index.handler
+    events:
+      - httpApi:
+          path: /habits/{habitId}
+          method: delete
+          authorizer:
+            name: cognitoAuthorizer
+  logHabit:
+    handler: functions/logs/logHabit/index.handler
+    events:
+      - httpApi:
+          path: /habits/{habitId}/log
+          method: post
+          authorizer:
+            name: cognitoAuthorizer
+  getLogs:
+    handler: functions/logs/getLogs/index.handler
+    events:
+      - httpApi:
+          path: /habits/{habitId}/logs
+          method: get
+          authorizer:
+            name: cognitoAuthorizer
+  getStats:
+    handler: functions/stats/getStats/index.handler
+    events:
+      - httpApi:
+          path: /stats
+          method: get
+          authorizer:
+            name: cognitoAuthorizer
+
+resources:
+  Resources:
+    HabitsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: habit-tracker-habits-dev
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: habitId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: habitId
+            KeyType: RANGE
+    HabitLogsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: habit-tracker-logs-dev
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: habitId
+            AttributeType: S
+          - AttributeName: date
+            AttributeType: S
+        KeySchema:
+          - AttributeName: habitId
+            KeyType: HASH
+          - AttributeName: date
+            KeyType: RANGE
+
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: habit-tracker-user-pool-dev
+        UsernameAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireUppercase: false
+            RequireLowercase: false
+            RequireNumbers: false
+            RequireSymbols: false
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: habit-tracker-client-dev
+        UserPoolId: !Ref CognitoUserPool
+        GenerateSecret: false
+        ExplicitAuthFlows:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
